@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PRAXIPENT</title>
+
+<style>
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #05070a;
+  font-family: monospace;
+  color: #9fb3ff;
+}
+
+/* UI PANEL */
+#ui {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  background: rgba(10,15,26,0.9);
+  padding: 12px;
+  border: 1px solid #5a6fff;
+  width: 200px;
+  z-index: 10;
+}
+
+input, button {
+  width: 100%;
+  margin-top: 5px;
+  background: #05070a;
+  color: #9fb3ff;
+  border: 1px solid #5a6fff;
+  padding: 6px;
+}
+
+button:hover {
+  background: #11182a;
+}
+
+/* SPEC PANEL */
+#specPanel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 400px;
+  height: 100%;
+  background: #0a0f1a;
+  border-left: 2px solid #5a6fff;
+  overflow-y: auto;
+  display: none;
+  padding: 15px;
+  white-space: pre;
+  font-size: 12px;
+}
+
+#footer {
+  position: absolute;
+  bottom: 10px;
+  left: 15px;
+  font-size: 11px;
+  color: #6a7cff;
+}
+</style>
+</head>
+
+<body>
+
+<!-- UI -->
+<div id="ui">
+  <b>PRAXIPENT</b>
+
+  <input id="inputBox" placeholder="input..." />
+  <button onclick="submitInput()">ENTER</button>
+  <button onclick="randomState()">STEP</button>
+  <button onclick="resetSystem()">RESET</button>
+  <button onclick="saveState()">SAVE</button>
+  <button onclick="loadState()">LOAD</button>
+  <button onclick="analyze()">ANALYZE</button>
+  <button onclick="toggleSpec()">SPEC</button>
+
+  <div id="state">(2,2,2)</div>
+</div>
+
+<div id="footer">structure → interaction → memory</div>
+
+<!-- SPEC PANEL -->
+<div id="specPanel">
+PRAXIPENT SYSTEM (v1.8.1)
+
+Structure is primary.
+System is deterministic.
+No identity. No interpretation.
+
+125-state lattice (5×5×5)
+
+Input → deterministic mapping → coordinate
+
+Memory:
+- nodeWeights
+- edges
+- trajectories
+
+Gemma:
+- builds structure
+- detects loops
+- reinforces patterns
+
+Observer:
+- prevents collapse
+- maintains equilibrium
+
+System:
+- persistent
+- interactive
+- multi-stream ready
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
+
+<script>
+
+// SCENE
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+camera.position.z = 18;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// GRID
+let nodes = [];
+let activeIndex = 62;
+
+const geo = new THREE.SphereGeometry(0.2, 10, 10);
+
+for (let x=0; x<5; x++) {
+  for (let y=0; y<5; y++) {
+    for (let z=0; z<5; z++) {
+
+      const mat = new THREE.MeshBasicMaterial({ color: 0x2a3a4a });
+      const mesh = new THREE.Mesh(geo, mat);
+
+      mesh.position.set((x-2)*2,(y-2)*2,(z-2)*2);
+
+      scene.add(mesh);
+      nodes.push(mesh);
+    }
+  }
+}
+
+// LIGHT
+const light = new THREE.PointLight(0xffcc88, 1.5, 40);
+scene.add(light);
+
+// SYSTEM DATA
+let trajectory = [];
+let edges = {};
+let nodeWeights = new Array(125).fill(0);
+let lineGroup = new THREE.Group();
+scene.add(lineGroup);
+
+// UPDATE
+function update() {
+
+  Object.keys(edges).forEach(k => {
+    edges[k] *= 0.98;
+    if (edges[k] < 0.1) delete edges[k];
+  });
+
+  nodes.forEach((n,i) => {
+    const w = nodeWeights[i];
+    const b = Math.min(w * 0.08, 0.6);
+    n.material.color.setRGB(0.16 + b, 0.23 + b, 0.3 + b);
+  });
+
+  const active = nodes[activeIndex];
+  active.material.color.set(0x00ffd5);
+  light.position.copy(active.position);
+
+  trajectory.push(activeIndex);
+  if (trajectory.length > 5) trajectory.shift();
+
+  nodeWeights[activeIndex] += 1;
+
+  for (let i = 0; i < trajectory.length - 1; i++) {
+    const key = `${trajectory[i]}-${trajectory[i+1]}`;
+    edges[key] = (edges[key] || 0) + 1;
+  }
+
+  lineGroup.clear();
+
+  Object.keys(edges).forEach(key => {
+    const [a,b] = key.split("-").map(Number);
+
+    const geometry = new THREE.BufferGeometry().setFromPoints([
+      nodes[a].position,
+      nodes[b].position
+    ]);
+
+    const weight = edges[key];
+    const intensity = Math.min(weight/5,1);
+
+    const material = new THREE.LineBasicMaterial({
+      color: new THREE.Color(0.4 + intensity, 0.4, 1),
+      transparent: true,
+      opacity: intensity
+    });
+
+    lineGroup.add(new THREE.Line(geometry, material));
+  });
+
+  const f = Math.floor(activeIndex / 25);
+  const a = Math.floor((activeIndex % 25) / 5);
+  const s = activeIndex % 5;
+
+  document.getElementById("state").innerText = `(${f}, ${a}, ${s})`;
+}
+
+// INPUT
+function mapInputToState(str) {
+  let sum = 0;
+  for (let i = 0; i < str.length; i++) {
+    sum += str.charCodeAt(i);
+  }
+  return sum % 125;
+}
+
+function submitInput() {
+  const box = document.getElementById("inputBox");
+  const val = box.value;
+  if (!val) return;
+
+  activeIndex = mapInputToState(val);
+  update();
+  box.value = "";
+}
+
+// STEP
+function randomState() {
+  if (Math.random() < 0.7) {
+    let total = nodeWeights.reduce((a,b)=>a+b,0);
+    let r = Math.random()*total, sum=0;
+    for (let i=0;i<125;i++){
+      sum+=nodeWeights[i];
+      if (sum>=r){ activeIndex=i; update(); return; }
+    }
+  }
+  activeIndex = Math.floor(Math.random()*125);
+  update();
+}
+
+// RESET
+function resetSystem() {
+  trajectory = [];
+  edges = {};
+  nodeWeights = new Array(125).fill(0);
+  lineGroup.clear();
+  update();
+}
+
+// SAVE / LOAD
+function saveState() {
+  localStorage.setItem("prax", JSON.stringify({nodeWeights,edges}));
+}
+
+function loadState() {
+  const data = JSON.parse(localStorage.getItem("prax"));
+  if (!data) return;
+  nodeWeights = data.nodeWeights || [];
+  edges = data.edges || {};
+  update();
+}
+
+// ANALYZE
+function analyze() {
+  console.log("Top Node:", nodeWeights.indexOf(Math.max(...nodeWeights)));
+}
+
+// SPEC TOGGLE
+function toggleSpec() {
+  const panel = document.getElementById("specPanel");
+  panel.style.display = panel.style.display === "none" ? "block" : "none";
+}
+
+// LOOP
+function animate() {
+  requestAnimationFrame(animate);
+  scene.rotation.y += 0.001;
+  scene.rotation.x += 0.0005;
+  renderer.render(scene, camera);
+}
+
+update();
+animate();
+
+</script>
+
+</body>
+</html>
