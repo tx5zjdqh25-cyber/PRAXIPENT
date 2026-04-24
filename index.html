@@ -1,0 +1,129 @@
+from flask import Flask, render_template, request, jsonify
+
+app = Flask(__name__)
+
+# -----------------------------
+# PRAXIL LATTICE CORE (SIMPLIFIED)
+# -----------------------------
+
+FIELDS = ["E", "A", "F", "W", "X"]
+
+def generate_node(x, y, z):
+    return f"{FIELDS[z]}{x}{y}{z}"
+
+def build_lattice():
+    lattice = []
+    for z in range(5):
+        layer = []
+        for y in range(5):
+            row = []
+            for x in range(5):
+                row.append(generate_node(x+1, y+1, z+1))
+            layer.append(row)
+        lattice.append(layer)
+    return lattice
+
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+@app.route("/lattice")
+def lattice():
+    return jsonify(build_lattice())
+
+
+@app.route("/query", methods=["POST"])
+def query():
+    data = request.json
+    input_text = data.get("input", "")
+
+    # SIMPLE DEMO MAPPER (expand later into full Prax logic)
+    result = []
+    for i, ch in enumerate(input_text.upper()):
+        z = i % 5
+        y = (i // 5) % 5
+        x = ord(ch) % 5
+        result.append({
+            "char": ch,
+            "node": generate_node(x+1, y+1, z+1)
+        })
+
+    return jsonify(result)
+
+
+if __name__ == "__main__":
+    app.run(debug=True)<!DOCTYPE html>
+<html>
+<head>
+    <title>Praxipent Lattice</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+
+<h1>Praxipent 125-Node Lattice</h1>
+
+<div class="input-box">
+    <input id="input" placeholder="Enter signal..." />
+    <button onclick="runQuery()">Run</button>
+</div>
+
+<pre id="output"></pre>
+
+<script>
+
+async function runQuery() {
+    const input = document.getElementById("input").value;
+
+    const res = await fetch("/query", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({input})
+    });
+
+    const data = await res.json();
+
+    document.getElementById("output").innerText =
+        JSON.stringify(data, null, 2);
+}
+
+</script>
+
+</body>
+</html>body {
+    background: #0b0b0f;
+    color: #eaeaea;
+    font-family: monospace;
+    text-align: center;
+}
+
+h1 {
+    margin-top: 30px;
+    color: #d6b3ff;
+}
+
+.input-box {
+    margin: 20px;
+}
+
+input {
+    padding: 10px;
+    width: 300px;
+}
+
+button {
+    padding: 10px;
+    margin-left: 10px;
+    cursor: pointer;
+}
+
+pre {
+    margin-top: 30px;
+    text-align: left;
+    display: inline-block;
+    background: #111;
+    padding: 20px;
+    border: 1px solid #333;
+}
