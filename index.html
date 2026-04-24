@@ -1,0 +1,229 @@
+from flask import Flask, request, jsonify, render_template_string
+import json
+import math
+import random
+import time
+
+app = Flask(__name__)
+
+# =========================================================
+# 🧱 LATTICE CORE (125 NODE SYSTEM)
+# =========================================================
+
+FIELDS = ["E", "A", "F", "W", "X"]
+
+def node(x, y, z):
+    return f"{FIELDS[z]}{x}{y}{z}"
+
+
+def map_input(text):
+    out = []
+    for i, ch in enumerate(text.upper()):
+        x = (ord(ch) + i * 3) % 5
+        y = (i * 2 + 1) % 5
+        z = i % 5
+
+        out.append({
+            "char": ch,
+            "node": node(x+1, y+1, z),
+            "freq": 110 + (ord(ch) % 40)
+        })
+    return out
+
+
+# =========================================================
+# 🧠 GEMMA (TRAJECTORY MEMORY — NOW PERSISTENT)
+# =========================================================
+
+MEM_FILE = "gemma_memory.json"
+
+def load_memory():
+    try:
+        with open(MEM_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return []
+
+def save_memory(mem):
+    with open(MEM_FILE, "w") as f:
+        json.dump(mem, f, indent=2)
+
+def gemma_log(entry):
+    mem = load_memory()
+    mem.append(entry)
+    save_memory(mem)
+    return len(mem)
+
+
+# =========================================================
+# 🧭 SYNARIS (COHERENCE ENGINE)
+# =========================================================
+
+def synaris(mapping):
+    if not mapping:
+        return 0.0
+
+    nodes = [m["node"] for m in mapping]
+    unique = len(set(nodes))
+    total = len(nodes)
+
+    repetition_pressure = 1 - (unique / total)
+    stability = 1 - repetition_pressure
+
+    return round(stability, 3)
+
+
+# =========================================================
+# 🪞 MIRRA (STRICT PRESENT RENDER — NO DRIFT)
+# =========================================================
+
+def mirra(mapping):
+    return "\n".join([f"{m['char']} → {m['node']}" for m in mapping])
+
+
+# =========================================================
+# 🔊 PRAX AUDIO ENGINE (NODE → TONE)
+# =========================================================
+
+def audio_trace(mapping):
+    return [
+        {
+            "node": m["node"],
+            "tone": m["freq"],
+            "phase": (i * 0.12) % 1
+        }
+        for i, m in enumerate(mapping)
+    ]
+
+
+# =========================================================
+# 🌐 3D LATTICE PROJECTION (DATA ONLY)
+# =========================================================
+
+def lattice_position(node_str):
+    # converts node into pseudo 3D coordinate
+    f = node_str[0]
+    x = int(node_str[1])
+    y = int(node_str[2])
+    z = int(node_str[3])
+    return {
+        "field": f,
+        "x": x,
+        "y": y,
+        "z": z
+    }
+
+
+# =========================================================
+# 🧠 SYSTEM EXECUTION PIPELINE
+# =========================================================
+
+def execute(text):
+    mapping = map_input(text)
+
+    # GEMMA
+    mem_size = gemma_log({
+        "time": time.time(),
+        "input": text,
+        "mapping": mapping
+    })
+
+    # SYNARIS
+    coherence = synaris(mapping)
+
+    # MIRRA
+    render = mirra(mapping)
+
+    # AUDIO
+    audio = audio_trace(mapping)
+
+    # 3D LATTICE
+    spatial = [lattice_position(m["node"]) for m in mapping]
+
+    return {
+        "mirra": render,
+        "coherence": coherence,
+        "gemma_size": mem_size,
+        "audio": audio,
+        "spatial": spatial
+    }
+
+
+# =========================================================
+# 🌐 SINGLE PAGE UI
+# =========================================================
+
+PAGE = """
+<!DOCTYPE html>
+<html>
+<head>
+<title>Praxipent System v2</title>
+<style>
+body { background:#0b0b0f; color:#eaeaea; font-family: monospace; text-align:center; }
+input { padding:10px; width:300px; }
+button { padding:10px; margin-left:10px; }
+pre { text-align:left; display:inline-block; background:#111; padding:20px; margin-top:20px; max-width:90%; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+
+<h2>PRAXIPENT — FULL ONE-BOX SYSTEM</h2>
+
+<input id="t" />
+<button onclick="run()">RUN</button>
+
+<pre id="o"></pre>
+
+<script>
+async function run(){
+    const input = document.getElementById("t").value;
+
+    const res = await fetch("/query", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({input})
+    });
+
+    const data = await res.json();
+
+    document.getElementById("o").innerText =
+`MIRRA:
+${data.mirra}
+
+COHERENCE: ${data.coherence}
+GEMMA SIZE: ${data.gemma_size}
+
+AUDIO SAMPLE:
+${JSON.stringify(data.audio.slice(0,3), null, 2)}
+
+SPATIAL SAMPLE:
+${JSON.stringify(data.spatial.slice(0,3), null, 2)}`
+}
+</script>
+
+</body>
+</html>
+"""
+
+
+# =========================================================
+# 🚀 ROUTES
+# =========================================================
+
+@app.route("/")
+def home():
+    return PAGE
+
+
+@app.route("/query", methods=["POST"])
+def query():
+    text = request.json.get("input", "")
+    return jsonify(execute(text))
+
+
+# =========================================================
+# RUN
+# =========================================================
+
+if __name__ == "__main__":
+    app.run(debug=True)
